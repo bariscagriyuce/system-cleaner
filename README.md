@@ -1,51 +1,50 @@
-# Sistem Temizleyici
+# System Cleaner
 
-CachyOS / Arch Linux için fare ile kullanılan, grafik arayüzlü disk temizleme aracı (PyQt6).
-`paru -Scc`, `paccache`, `journalctl --vacuum-size` gibi komutları terminal açmadan çalıştırır.
+**English** | [Türkçe](README.tr.md) | [Português (Brasil)](README.pt-BR.md)
 
-![Ekran görüntüsü](docs/ekran-goruntusu.png)
+A graphical, mouse-driven disk cleanup tool for CachyOS / Arch Linux (PyQt6).
+It runs commands like `paru -Scc`, `paccache` and `journalctl --vacuum-size` for you — no terminal needed.
 
-## Diller / Languages / Idiomas
-Program sistem dilini otomatik algılar: **Türkçe**, **English**, **Português (Brasil)**.
-Sistem dili bunlardan biri değilse program İngilizce açılır.
-Dili elle seçmek için: `SISTEM_TEMIZLEYICI_LANG=en sistem-temizleyici`
+![Screenshot](docs/screenshot-en.png)
 
-*English:* The app follows your system language (Turkish, English or Brazilian Portuguese)
-and falls back to English for any other language. Install with `sh kur.sh`.
+## Languages
+The app detects your system language automatically: **Türkçe**, **English**, **Português (Brasil)**.
+If your system language is anything else, the app runs in English.
+To choose the language manually: `SISTEM_TEMIZLEYICI_LANG=en sistem-temizleyici` (`tr`, `en` or `pt_BR`).
 
-*Português:* O aplicativo segue o idioma do sistema (turco, inglês ou português do Brasil)
-e usa inglês para qualquer outro idioma. Instale com `sh kur.sh`.
-
-## Kurulum (bir kez)
+## Installation (once)
     git clone https://github.com/bariscagriyuce/system-cleaner.git
     cd system-cleaner
     sh kur.sh
-Paket olarak kurulur (pacman tarafından takip edilir). Ardından uygulama menüsünde **Sistem Temizleyici**.
+It is installed as a package (tracked by pacman). Then find **System Cleaner** in your application menu.
 
-## Kaldırma
+## Uninstall
     sh kaldir.sh
 
-## Neleri temizler
-| Kategori | Karşılığı | Yetki |
+## What it cleans
+| Category | Equivalent | Admin |
 |---|---|---|
-| Paket önbelleği | `paccache -rk N` | 🔒 |
-| Kaldırılmış paket önbelleği | `paccache -ruk0` | 🔒 |
-| Yarım kalmış indirmeler | `/var/cache/pacman/pkg/download-*` | 🔒 |
-| AUR derleme önbelleği | `~/.cache/paru`, `~/.cache/yay` (`paru -Scc`) | |
-| Sistem günlükleri | `journalctl --vacuum-size` | 🔒 |
-| Çökme dökümleri | `/var/lib/systemd/coredump` | 🔒 |
-| Küçük resimler | `~/.cache/thumbnails` | |
-| Uygulama/tarayıcı önbellekleri | `~/.cache/*` (seçilebilir) | |
-| Kullanılmayan Flatpak | `flatpak uninstall --unused` | |
-| Tarayıcı kurtarma yedekleri | `~/.config/*-backup-crashrecovery-*` (profile-sync-daemon) | |
-| Çöp kutusu | `~/.local/share/Trash` | |
-| Yetim paketler | `pacman -Rns $(pacman -Qdtq)` (seçilebilir) | 🔒 |
+| Package cache | `paccache -rk N` | 🔒 |
+| Cache of removed packages | `paccache -ruk0` | 🔒 |
+| Incomplete downloads | `/var/cache/pacman/pkg/download-*` | 🔒 |
+| AUR build cache | `~/.cache/paru`, `~/.cache/yay` (`paru -Scc`) | |
+| System logs | `journalctl --vacuum-size` | 🔒 |
+| Crash dumps | `/var/lib/systemd/coredump` | 🔒 |
+| Thumbnails | `~/.cache/thumbnails` | |
+| Application/browser caches | `~/.cache/*` (selectable) | |
+| Unused Flatpak runtimes | `flatpak uninstall --unused` | |
+| Browser recovery backups | `~/.config/*-backup-crashrecovery-*` (profile-sync-daemon) | |
+| Trash | `~/.local/share/Trash` | |
+| Orphan packages | `pacman -Rns $(pacman -Qdtq)` (selectable) | 🔒 |
 
-🔒 işlemler tek bir pkexec şifre penceresiyle, yalnızca beyaz listedeki komutları çalıştıran
-`helper.py` üzerinden yapılır.
+Browser caches do **not** contain your sessions, passwords, cookies or history — those live in
+`~/.config` and are never touched.
 
-## Gereksinimler
-`python`, `python-pyqt6`, `pacman-contrib`, `polkit` (kurulum betiği bağımlılıkları kendisi kurar).
+🔒 steps run through a single pkexec password prompt, via `helper.py`, which only accepts a
+whitelist of commands.
 
-## Lisans
+## Requirements
+`python`, `python-pyqt6`, `pacman-contrib`, `polkit` (the install script pulls in the dependencies).
+
+## License
 MIT
