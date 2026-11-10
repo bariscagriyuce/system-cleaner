@@ -184,6 +184,11 @@ STRINGS = {
 
     # --- arayüz ---
     "ui.ok": ("Tamam", "OK", "OK"),
+    "ui.pm_running": (
+        "Şu anda bir paket işlemi sürüyor ({name}). Güncelleme ya da kurulum bitince tekrar deneyin.",
+        "A package operation is currently running ({name}). Please try again after the update or installation finishes.",
+        "Uma operação de pacotes está em andamento ({name}). Tente novamente quando a atualização ou instalação terminar.",
+    ),
     "ui.cancel": ("Vazgeç", "Cancel", "Cancelar"),
     "ui.yes_clean": ("Evet, temizle", "Yes, clean", "Sim, limpar"),
     "ui.details": ("Ayrıntılar", "Details", "Detalhes"),

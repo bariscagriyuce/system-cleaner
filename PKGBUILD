@@ -1,6 +1,6 @@
 # Maintainer: yerel kullanım
 pkgname=sistem-temizleyici
-pkgver=1.1.0
+pkgver=1.1.1
 pkgrel=1
 pkgdesc="Graphical system cleaner for CachyOS/Arch (Türkçe, English, Português do Brasil)"
 arch=('any')

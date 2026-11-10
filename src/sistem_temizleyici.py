@@ -21,7 +21,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from i18n import DECIMAL, LANG, STRINGS, _  # noqa: E402
 
 APP_NAME = _("app_name")
-APP_VERSION = "1.1.0"
+APP_VERSION = "1.1.1"
 HOME = os.path.expanduser("~")
 CACHE = os.path.join(HOME, ".cache")
 TRASH = os.path.join(HOME, ".local/share/Trash")
@@ -46,6 +46,21 @@ PSD_GLOBS = [os.path.join(HOME, ".config/*-backup-crashrecovery-*"),
              os.path.join(HOME, ".mozilla/firefox/*-backup-crashrecovery-*")]
 PSD_RE = re.compile(r"-backup-crashrecovery-\d{8}_\d{6}$")
 SELECTABLE = ("app_cache", "orphans", "aur_cache", "psd_crash")
+# AUR yardımcılarının -git paketlerini takip ettiği dosyalar: silinmez.
+AUR_KEEP = {"vcs.json", "devel.json", "devel.toml"}
+# Bunlardan biri çalışırken temizlik başlatılmaz.
+PACMAN_LOCK = "/var/lib/pacman/db.lck"
+PACKAGE_MANAGERS = ("pacman", "paru", "yay", "makepkg", "pamac")
+
+
+def package_manager_busy():
+    """Çalışan paket yöneticisinin adını (ya da 'pacman') döner; yoksa None."""
+    if os.path.exists(PACMAN_LOCK):
+        return "pacman"
+    for name in PACKAGE_MANAGERS:
+        if subprocess.run(["pgrep", "-x", name], capture_output=True).returncode == 0:
+            return name
+    return None
 
 
 def psd_dirs():
@@ -99,12 +114,15 @@ def run_c(cmd, timeout=60):
         return ""
 
 
-def clear_dir_contents(path, log):
-    """Klasörün kendisini bırakıp içini boşaltır. Silinen bayt miktarını döner."""
+def clear_dir_contents(path, log, keep=()):
+    """Klasörün kendisini bırakıp içini boşaltır (keep içindeki adlar korunur).
+    Silinen bayt miktarını döner."""
     if not os.path.isdir(path):
         return 0
     before = du(path)
     for name in os.listdir(path):
+        if name in keep:
+            continue
         p = os.path.join(path, name)
         try:
             if os.path.isdir(p) and not os.path.islink(p):
@@ -359,7 +377,7 @@ class CleanWorker(QObject):
         log = self.log.emit
         if c.key == "aur_cache":
             for i in c.selected_items():
-                freed = clear_dir_contents(os.path.join(CACHE, i.key), log)
+                freed = clear_dir_contents(os.path.join(CACHE, i.key), log, keep=AUR_KEEP)
                 log(f"  ~/.cache/{i.key}: " + _("log.freed", size=human(freed)))
         elif c.key == "thumbnails":
             freed = clear_dir_contents(os.path.join(CACHE, "thumbnails"), log)
@@ -693,6 +711,10 @@ class MainWindow(QMainWindow):
 
     # -- temizleme --
     def clean(self):
+        busy = package_manager_busy()
+        if busy:
+            info_box(self, _("ui.pm_running", name=busy))
+            return
         chosen = [c for c in self.cats if self.cards[c.key].is_checked()]
         chosen = [c for c in chosen if not (c.items and c.key in SELECTABLE and not c.selected_items())]
         if not chosen:

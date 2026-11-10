@@ -23,6 +23,9 @@ ENV = dict(os.environ, LC_ALL="C", LANG="C")
 PKG_DIR = "/var/cache/pacman/pkg"
 COREDUMP_DIR = "/var/lib/systemd/coredump"
 PKG_NAME_RE = re.compile(r"^[a-z0-9@._+-]+$")
+PACMAN_LOCK = "/var/lib/pacman/db.lck"
+# pacman veritabanına / önbelleğine dokunan işlemler: pacman çalışırken atlanır.
+PACMAN_ACTIONS = {"pkg-cache", "pkg-uninstalled", "pkg-partial", "orphans"}
 
 # Mesajlar: (tr, en, pt_BR). pkexec ortam değişkenlerini sildiği için dil --lang ile gelir.
 LANGS = ("tr", "en", "pt_BR")
@@ -44,6 +47,9 @@ MESSAGES = {
                 "Unknown action rejected: {name}",
                 "Ação desconhecida rejeitada: {name}"),
     "error": ("  HATA: {e}", "  ERROR: {e}", "  ERRO: {e}"),
+    "locked": ("  Atlandı: pacman şu anda çalışıyor.",
+               "  Skipped: pacman is currently running.",
+               "  Ignorado: o pacman está em execução no momento."),
     "bad_keep": ("geçersiz sürüm sayısı", "invalid number of versions", "número de versões inválido"),
     "bad_size": ("geçersiz günlük boyutu", "invalid log size", "tamanho de log inválido"),
 }
@@ -149,6 +155,10 @@ def main(argv):
             failed += 1
             continue
         say(f"### {name}")
+        if name in PACMAN_ACTIONS and os.path.exists(PACMAN_LOCK):
+            say(t("locked"))
+            failed += 1
+            continue
         try:
             if func(param) != 0:
                 failed += 1
