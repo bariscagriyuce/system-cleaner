@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=Sistem Temizleyici
+Name[en]=System Cleaner
+GenericName=Disk Temizleme
+Comment=Gereksiz önbellek, eski paket ve günlük dosyalarını temizler
+Exec=sistem-temizleyici
+Icon=edit-clear-all
+Terminal=false
+Categories=System;Utility;Settings;
+Keywords=temizle;önbellek;cache;pacman;paru;disk;clean;
+StartupWMClass=sistem-temizleyici
