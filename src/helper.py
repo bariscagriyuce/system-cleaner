@@ -4,7 +4,7 @@
 Bu betik pkexec ile root olarak çalıştırılır. Yalnızca aşağıdaki
 beyaz listedeki işlemleri kabul eder; dışarıdan rastgele komut almaz.
 
-Kullanım:  helper.py ISLEM[:PARAMETRE] [ISLEM[:PARAMETRE] ...]
+Kullanım:  helper.py [--lang=tr|en|pt_BR] ISLEM[:PARAMETRE] [ISLEM[:PARAMETRE] ...]
 
   pkg-cache:N        Paket önbelleğinde her paketin son N sürümü dışında hepsini sil (0-5)
   pkg-uninstalled    Kaldırılmış paketlerin önbellekteki dosyalarını sil
@@ -24,6 +24,34 @@ PKG_DIR = "/var/cache/pacman/pkg"
 COREDUMP_DIR = "/var/lib/systemd/coredump"
 PKG_NAME_RE = re.compile(r"^[a-z0-9@._+-]+$")
 
+# Mesajlar: (tr, en, pt_BR). pkexec ortam değişkenlerini sildiği için dil --lang ile gelir.
+LANGS = ("tr", "en", "pt_BR")
+LANG_INDEX = 1
+MESSAGES = {
+    "partial": ("  {n} yarım kalmış indirme klasörü silindi.",
+                "  {n} incomplete download folders removed.",
+                "  {n} pastas de downloads incompletos removidas."),
+    "no_orphans": ("  Kaldırılacak yetim paket yok.",
+                   "  There are no orphan packages to remove.",
+                   "  Não há pacotes órfãos para remover."),
+    "coredump": ("  {n} çökme dökümü silindi.",
+                 "  {n} crash dumps removed.",
+                 "  {n} despejos de falhas removidos."),
+    "need_root": ("Bu yardımcı root olarak çalıştırılmalı (pkexec).",
+                  "This helper must be run as root (pkexec).",
+                  "Este auxiliar deve ser executado como root (pkexec)."),
+    "unknown": ("Bilinmeyen işlem reddedildi: {name}",
+                "Unknown action rejected: {name}",
+                "Ação desconhecida rejeitada: {name}"),
+    "error": ("  HATA: {e}", "  ERROR: {e}", "  ERRO: {e}"),
+    "bad_keep": ("geçersiz sürüm sayısı", "invalid number of versions", "número de versões inválido"),
+    "bad_size": ("geçersiz günlük boyutu", "invalid log size", "tamanho de log inválido"),
+}
+
+
+def t(key, **kw):
+    return MESSAGES[key][LANG_INDEX].format(**kw)
+
 
 def say(msg):
     print(msg, flush=True)
@@ -42,7 +70,7 @@ def run(cmd):
 def pkg_cache(param):
     keep = int(param)
     if not 0 <= keep <= 5:
-        raise ValueError("geçersiz sürüm sayısı")
+        raise ValueError(t("bad_keep"))
     return run(["paccache", "-r", "-k", str(keep)])
 
 
@@ -57,7 +85,7 @@ def pkg_partial(_):
         if name.startswith("download-") and os.path.isdir(path) and not os.path.islink(path):
             shutil.rmtree(path, ignore_errors=True)
             removed += 1
-    say(f"  {removed} yarım kalmış indirme klasörü silindi.")
+    say(t("partial", n=removed))
     return 0
 
 
@@ -70,7 +98,7 @@ def orphans(param):
     else:
         targets = sorted(current)
     if not targets:
-        say("  Kaldırılacak yetim paket yok.")
+        say(t("no_orphans"))
         return 0
     return run(["pacman", "-Rns", "--noconfirm", *targets])
 
@@ -78,7 +106,7 @@ def orphans(param):
 def journal(param):
     mb = int(param)
     if not 50 <= mb <= 10000:
-        raise ValueError("geçersiz günlük boyutu")
+        raise ValueError(t("bad_size"))
     return run(["journalctl", f"--vacuum-size={mb}M"])
 
 
@@ -90,7 +118,7 @@ def coredump(_):
             if os.path.isfile(path) and not os.path.islink(path):
                 os.remove(path)
                 removed += 1
-    say(f"  {removed} çökme dökümü silindi.")
+    say(t("coredump", n=removed))
     return 0
 
 
@@ -105,15 +133,19 @@ ACTIONS = {
 
 
 def main(argv):
+    global LANG_INDEX
+    if argv and argv[0].startswith("--lang="):
+        lang = argv.pop(0).split("=", 1)[1]
+        LANG_INDEX = LANGS.index(lang) if lang in LANGS else 1
     if os.geteuid() != 0:
-        say("Bu yardımcı root olarak çalıştırılmalı (pkexec).")
+        say(t("need_root"))
         return 2
     failed = 0
     for arg in argv:
         name, _, param = arg.partition(":")
         func = ACTIONS.get(name)
         if func is None:
-            say(f"Bilinmeyen işlem reddedildi: {name}")
+            say(t("unknown", name=name))
             failed += 1
             continue
         say(f"### {name}")
@@ -121,7 +153,7 @@ def main(argv):
             if func(param) != 0:
                 failed += 1
         except Exception as exc:  # noqa: BLE001
-            say(f"  HATA: {exc}")
+            say(t("error", e=exc))
             failed += 1
     return 1 if failed else 0
 

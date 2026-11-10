@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Sistem Temizleyici - CachyOS / Arch için grafik arayüzlü disk temizleme aracı."""
+"""Sistem Temizleyici / System Cleaner - CachyOS / Arch için grafik arayüzlü disk temizleme aracı."""
 import os
 import re
 import glob
@@ -8,7 +8,7 @@ import subprocess
 import sys
 from dataclasses import dataclass, field
 
-from PyQt6.QtCore import QObject, Qt, QThread, pyqtSignal
+from PyQt6.QtCore import QLibraryInfo, QObject, Qt, QThread, QTranslator, pyqtSignal
 from PyQt6.QtGui import QFont, QIcon
 from PyQt6.QtWidgets import (
     QApplication, QCheckBox, QDialog, QDialogButtonBox, QFrame, QHBoxLayout,
@@ -17,8 +17,11 @@ from PyQt6.QtWidgets import (
     QSplitter, QVBoxLayout, QWidget,
 )
 
-APP_NAME = "Sistem Temizleyici"
-APP_VERSION = "1.0.0"
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from i18n import DECIMAL, LANG, STRINGS, _  # noqa: E402
+
+APP_NAME = _("app_name")
+APP_VERSION = "1.1.0"
 HOME = os.path.expanduser("~")
 CACHE = os.path.join(HOME, ".cache")
 TRASH = os.path.join(HOME, ".local/share/Trash")
@@ -63,9 +66,10 @@ def human(n):
     n = float(n)
     for unit in ("B", "KB", "MB", "GB", "TB"):
         if abs(n) < 1024 or unit == "TB":
-            return f"{n:.0f} {unit}" if unit in ("B", "KB") else f"{n:.1f} {unit}"
+            text = f"{n:.0f} {unit}" if unit in ("B", "KB") else f"{n:.1f} {unit}"
+            return text.replace(".", DECIMAL)
         n /= 1024
-    return f"{n:.1f} TB"
+    return f"{n:.1f} TB".replace(".", DECIMAL)
 
 
 def parse_size(text):
@@ -108,7 +112,7 @@ def clear_dir_contents(path, log):
             else:
                 os.remove(p)
         except OSError as exc:
-            log(f"  atlandı: {p} ({exc.strerror})")
+            log(_("log.skipped", p=p, e=exc.strerror))
     return max(0, before - du(path))
 
 
@@ -153,48 +157,26 @@ class Category:
 
 
 def make_categories():
+    def cat(key, icon, **kw):
+        if "option" in kw:
+            kw["option"] = (_(f"{key}.option"),) + kw["option"]
+        warn = f"{key}.warn"
+        return Category(key, _(f"{key}.title"), _(f"{key}.desc"), icon,
+                        warn=_(warn) if warn in STRINGS else "", **kw)
+
     cats = [
-        Category("pkg_cache", "Paket önbelleği (pacman)",
-                 "Güncellemelerden kalan eski paket dosyaları. Her paketin son birkaç sürümü geri dönüş için saklanır.",
-                 "package-x-generic", root=True,
-                 option=("Saklanacak sürüm", 0, 3, 1, "")),
-        Category("pkg_uninstalled", "Kaldırılmış paketlerin önbelleği",
-                 "Artık sistemde kurulu olmayan paketlerin önbellekteki dosyaları.",
-                 "edit-delete", root=True),
-        Category("pkg_partial", "Yarım kalmış indirmeler",
-                 "Kesilen güncellemelerden kalan geçici 'download-*' klasörleri.",
-                 "folder-download", root=True),
-        Category("aur_cache", "AUR derleme önbelleği (paru / yay)",
-                 "AUR paketlerini derlemek için indirilen kaynak kodları ve derleme dosyaları ('paru -Scc' ile aynı).",
-                 "folder-build", root=False),
-        Category("journal", "Sistem günlükleri (journal)",
-                 "Eski sistem kayıtları belirtilen boyuta küçültülür.",
-                 "text-x-log", root=True,
-                 option=("Saklanacak boyut", 50, 2000, 100, " MB")),
-        Category("coredump", "Çökme dökümleri",
-                 "Çöken programların bıraktığı hata ayıklama dosyaları.",
-                 "tools-report-bug", root=True),
-        Category("thumbnails", "Küçük resim önbelleği",
-                 "Dosya yöneticisinin ürettiği önizleme resimleri. Gerektiğinde yeniden oluşturulur.",
-                 "image-x-generic"),
-        Category("app_cache", "Uygulama ve tarayıcı önbellekleri",
-                 "~/.cache içindeki önbellekler. 'Ayrıntılar' ile hangilerinin silineceğini seçebilirsiniz.",
-                 "applications-internet",
-                 warn="Silmeden önce tarayıcıları kapatmanız önerilir."),
-        Category("psd_crash", "Tarayıcı kurtarma yedekleri",
-                 "profile-sync-daemon'ın bir çökmeden sonra bıraktığı eski tarayıcı profili kopyaları. Tarayıcılarınız düzgün çalışıyorsa gerekmez.",
-                 "document-revert", default=False,
-                 warn="Bir tarayıcıda oturum, yer imi vb. kaybolduysa önce bu yedeklerden geri alın; silindikten sonra geri getirilemez."),
-        Category("flatpak", "Kullanılmayan Flatpak bileşenleri",
-                 "Hiçbir uygulamanın kullanmadığı Flatpak çalışma ortamları.",
-                 "flatpak-discover"),
-        Category("trash", "Çöp kutusu",
-                 "Çöp kutusundaki dosyalar kalıcı olarak silinir.",
-                 "user-trash-full", default=False),
-        Category("orphans", "Yetim paketler",
-                 "Bağımlılık olarak kurulmuş ama artık hiçbir paketin ihtiyaç duymadığı paketler.",
-                 "dialog-warning", root=True, default=False,
-                 warn="Listeyi 'Ayrıntılar'dan kontrol edin; ihtiyaç duyduğunuz bir paket varsa işaretini kaldırın."),
+        cat("pkg_cache", "package-x-generic", root=True, option=(0, 3, 1, "")),
+        cat("pkg_uninstalled", "edit-delete", root=True),
+        cat("pkg_partial", "folder-download", root=True),
+        cat("aur_cache", "folder-build"),
+        cat("journal", "text-x-log", root=True, option=(50, 2000, 100, " MB")),
+        cat("coredump", "tools-report-bug", root=True),
+        cat("thumbnails", "image-x-generic"),
+        cat("app_cache", "applications-internet"),
+        cat("psd_crash", "document-revert", default=False),
+        cat("flatpak", "flatpak-discover"),
+        cat("trash", "user-trash-full", default=False),
+        cat("orphans", "dialog-warning", root=True, default=False),
     ]
     for c in cats:
         if c.option:
@@ -210,23 +192,23 @@ def scan_category(c):
         out = run_c(["paccache", "-d", "-k", str(c.option_value)])
         m = re.search(r"(\d+) candidates? \(disk space saved: ([^)]+)\)", out)
         if m:
-            c.size, c.info = parse_size(m.group(2)), f"{m.group(1)} dosya"
+            c.size, c.info = parse_size(m.group(2)), _("info.files", n=m.group(1))
         else:
-            c.info = "Temiz"
+            c.info = _("info.clean")
     elif k == "pkg_uninstalled":
         out = run_c(["paccache", "-d", "-u", "-k", "0"])
         m = re.search(r"(\d+) candidates? \(disk space saved: ([^)]+)\)", out)
         if m:
-            c.size, c.info = parse_size(m.group(2)), f"{m.group(1)} dosya"
+            c.size, c.info = parse_size(m.group(2)), _("info.files", n=m.group(1))
         else:
-            c.info = "Temiz"
+            c.info = _("info.clean")
     elif k == "pkg_partial":
         try:
             n = sum(1 for x in os.listdir("/var/cache/pacman/pkg") if x.startswith("download-"))
         except OSError:
             n = 0
         c.size = None if n else 0
-        c.info = f"{n} klasör (boyut yetki gerektirir)" if n else "Temiz"
+        c.info = _("info.partial", n=n) if n else _("info.clean")
     elif k == "aur_cache":
         for name in ("paru", "yay"):
             p = os.path.join(CACHE, name)
@@ -238,7 +220,7 @@ def scan_category(c):
         m = re.search(r"take up ([\d.]+[KMGT]?)", out)
         used = parse_size(m.group(1)) if m else 0
         c.size = max(0, used - c.option_value * 1024**2)
-        c.info = f"Şu an {human(used)}"
+        c.info = _("info.now", size=human(used))
     elif k == "coredump":
         c.size = du("/var/lib/systemd/coredump")
     elif k == "thumbnails":
@@ -260,7 +242,7 @@ def scan_category(c):
             label = p.replace(HOME, "~", 1)
             c.items.append(Item(p, label, du(p)))
         c.size = sum(i.size for i in c.items)
-        c.info = "" if c.items else "Yok"
+        c.info = "" if c.items else _("info.none")
     elif k == "flatpak":
         if shutil.which("flatpak"):
             try:
@@ -270,11 +252,11 @@ def scan_category(c):
                 out = ""
             refs = re.findall(r"^\s*\d+\.\s+\S", out, re.M)
             if "Nothing unused" in out or not refs:
-                c.size, c.info = 0, "Temiz"
+                c.size, c.info = 0, _("info.clean")
             else:
-                c.size, c.info = None, f"{len(refs)} bileşen"
+                c.size, c.info = None, _("info.components", n=len(refs))
         else:
-            c.info = "Flatpak kurulu değil"
+            c.info = _("info.no_flatpak")
     elif k == "trash":
         c.size = du(os.path.join(TRASH, "files")) + du(os.path.join(TRASH, "info"))
     elif k == "orphans":
@@ -291,7 +273,7 @@ def scan_category(c):
             for n in names:
                 c.items.append(Item(n, n, sizes.get(n, 0)))
         c.size = sum(i.size for i in c.items)
-        c.info = f"{len(names)} paket" if names else "Yok"
+        c.info = _("info.packages", n=len(names)) if names else _("info.none")
     return c
 
 
@@ -309,11 +291,11 @@ class ScanWorker(QObject):
 
     def run(self):
         for c in self.cats:
-            self.progress.emit(f"Taranıyor: {c.title}")
+            self.progress.emit(_("log.scanning", t=c.title))
             try:
                 scan_category(c)
             except Exception as exc:  # noqa: BLE001
-                c.info = f"Hata: {exc}"
+                c.info = _("info.error", e=exc)
             self.one_done.emit(c.key)
         self.finished.emit()
 
@@ -350,26 +332,26 @@ class CleanWorker(QObject):
             try:
                 self.clean_user(c)
             except Exception as exc:  # noqa: BLE001
-                self.log.emit(f"  HATA: {exc}")
+                self.log.emit(_("log.error", e=exc))
                 ok = False
 
         if root_args:
             helper = INSTALLED_HELPER if os.path.exists(INSTALLED_HELPER) else LOCAL_HELPER
-            self.log.emit("### Yönetici yetkisi isteniyor (şifre penceresi açılacak)…")
+            self.log.emit(_("log.asking_admin"))
             try:
-                proc = subprocess.Popen(["pkexec", sys.executable if helper == LOCAL_HELPER else helper,
-                                         *([helper] if helper == LOCAL_HELPER else []), *root_args],
+                cmd = ["pkexec", helper] if helper == INSTALLED_HELPER else ["pkexec", sys.executable, helper]
+                proc = subprocess.Popen([*cmd, f"--lang={LANG}", *root_args],
                                         stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
                 for line in proc.stdout:
                     self.log.emit(line.rstrip())
                 rc = proc.wait()
                 if rc in (126, 127):
-                    self.log.emit("Yetki verilmedi; sistem dosyaları temizlenmedi.")
+                    self.log.emit(_("log.denied"))
                     ok = False
                 elif rc != 0:
                     ok = False
             except FileNotFoundError:
-                self.log.emit("pkexec bulunamadı.")
+                self.log.emit(_("log.no_pkexec"))
                 ok = False
         self.finished.emit(ok)
 
@@ -378,28 +360,28 @@ class CleanWorker(QObject):
         if c.key == "aur_cache":
             for i in c.selected_items():
                 freed = clear_dir_contents(os.path.join(CACHE, i.key), log)
-                log(f"  ~/.cache/{i.key}: {human(freed)} boşaltıldı")
+                log(f"  ~/.cache/{i.key}: " + _("log.freed", size=human(freed)))
         elif c.key == "thumbnails":
             freed = clear_dir_contents(os.path.join(CACHE, "thumbnails"), log)
-            log(f"  {human(freed)} boşaltıldı")
+            log("  " + _("log.freed", size=human(freed)))
         elif c.key == "app_cache":
             for i in c.selected_items():
                 freed = clear_dir_contents(os.path.join(CACHE, i.key), log)
-                log(f"  {i.key}: {human(freed)} boşaltıldı")
+                log(f"  {i.key}: " + _("log.freed", size=human(freed)))
         elif c.key == "psd_crash":
             allowed = set(psd_dirs())
             for i in c.selected_items():
                 if i.key not in allowed:
-                    log(f"  atlandı (artık yok): {i.label}")
+                    log(_("log.skipped_gone", p=i.label))
                     continue
                 size = du(i.key)
                 shutil.rmtree(i.key, ignore_errors=True)
-                log(f"  {i.label}: {human(size if not os.path.exists(i.key) else 0)} silindi")
+                log(f"  {i.label}: " + _("log.removed", size=human(size if not os.path.exists(i.key) else 0)))
         elif c.key == "trash":
             freed = 0
             for sub in ("files", "info", "expunged"):
                 freed += clear_dir_contents(os.path.join(TRASH, sub), log)
-            log(f"  {human(freed)} boşaltıldı")
+            log("  " + _("log.freed", size=human(freed)))
         elif c.key == "flatpak":
             proc = subprocess.run(["flatpak", "uninstall", "--unused", "-y", "--noninteractive"],
                                   capture_output=True, text=True, stdin=subprocess.DEVNULL)
@@ -423,14 +405,20 @@ QProgressBar { border-radius: 6px; height: 18px; text-align: center; }
 """
 
 
+def info_box(parent, text):
+    box = QMessageBox(QMessageBox.Icon.Information, APP_NAME, text, parent=parent)
+    box.addButton(_("ui.ok"), QMessageBox.ButtonRole.AcceptRole)
+    box.exec()
+
+
 class DetailsDialog(QDialog):
     def __init__(self, cat, parent=None):
         super().__init__(parent)
         self.cat = cat
-        self.setWindowTitle(f"Ayrıntılar — {cat.title}")
+        self.setWindowTitle(_("ui.details_title", t=cat.title))
         self.resize(520, 520)
         lay = QVBoxLayout(self)
-        lay.addWidget(QLabel("Silinecek öğeleri işaretleyin:"))
+        lay.addWidget(QLabel(_("ui.details_prompt")))
         self.list = QListWidget()
         for it in cat.items:
             w = QListWidgetItem(f"{it.label}    —    {human(it.size)}")
@@ -439,8 +427,8 @@ class DetailsDialog(QDialog):
             self.list.addItem(w)
         lay.addWidget(self.list)
         row = QHBoxLayout()
-        b_all = QPushButton("Tümünü seç")
-        b_none = QPushButton("Hiçbirini seçme")
+        b_all = QPushButton(_("ui.select_all"))
+        b_none = QPushButton(_("ui.select_none"))
         b_all.clicked.connect(lambda: self._set_all(True))
         b_none.clicked.connect(lambda: self._set_all(False))
         row.addWidget(b_all)
@@ -448,6 +436,8 @@ class DetailsDialog(QDialog):
         row.addStretch()
         lay.addLayout(row)
         bb = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        bb.button(QDialogButtonBox.StandardButton.Ok).setText(_("ui.ok"))
+        bb.button(QDialogButtonBox.StandardButton.Cancel).setText(_("ui.cancel"))
         bb.accepted.connect(self.accept)
         bb.rejected.connect(self.reject)
         lay.addWidget(bb)
@@ -485,7 +475,7 @@ class CategoryCard(QFrame):
         mid = QVBoxLayout()
         t = QLabel(cat.title + ("  🔒" if cat.root else ""))
         t.setObjectName("title")
-        t.setToolTip("Yönetici şifresi gerektirir" if cat.root else "")
+        t.setToolTip(_("ui.needs_admin") if cat.root else "")
         mid.addWidget(t)
         d = QLabel(cat.desc)
         d.setObjectName("desc")
@@ -499,7 +489,7 @@ class CategoryCard(QFrame):
         lay.addLayout(mid, 1)
 
         if cat.option:
-            label, lo, hi, _, suffix = cat.option
+            label, lo, hi, _default, suffix = cat.option
             box = QVBoxLayout()
             box.addWidget(QLabel(label))
             self.spin = QSpinBox()
@@ -521,7 +511,7 @@ class CategoryCard(QFrame):
         self.info_lbl.setObjectName("info")
         self.info_lbl.setAlignment(Qt.AlignmentFlag.AlignRight)
         right.addWidget(self.info_lbl)
-        self.details = QPushButton("Ayrıntılar")
+        self.details = QPushButton(_("ui.details"))
         self.details.setVisible(False)
         self.details.clicked.connect(self._details)
         right.addWidget(self.details, alignment=Qt.AlignmentFlag.AlignRight)
@@ -550,7 +540,7 @@ class CategoryCard(QFrame):
         self.size_lbl.setText(human(c.effective_size()) if c.effective_size() is not None else "?")
         info = c.info
         if c.items and c.key in SELECTABLE:
-            info = f"{len(c.selected_items())}/{len(c.items)} seçili"
+            info = _("info.selected", a=len(c.selected_items()), b=len(c.items))
         self.info_lbl.setText(info)
         self.details.setVisible(bool(c.items))
 
@@ -582,7 +572,7 @@ class MainWindow(QMainWindow):
         icon.setPixmap(QIcon.fromTheme("drive-harddisk").pixmap(40, 40))
         top.addWidget(icon)
         tl = QVBoxLayout()
-        h = QLabel("Sistem diski ( / )")
+        h = QLabel(_("ui.system_disk"))
         h.setFont(QFont(h.font().family(), 13, QFont.Weight.Bold))
         tl.addWidget(h)
         self.disk_lbl = QLabel()
@@ -619,7 +609,7 @@ class MainWindow(QMainWindow):
 
         self.log_box = QPlainTextEdit()
         self.log_box.setReadOnly(True)
-        self.log_box.setPlaceholderText("İşlem kayıtları burada görünecek…")
+        self.log_box.setPlaceholderText(_("ui.log_placeholder"))
         self.log_box.setFont(QFont("monospace", 9))
         splitter.addWidget(self.log_box)
         splitter.setSizes([600, 140])
@@ -629,10 +619,10 @@ class MainWindow(QMainWindow):
         bottom = QHBoxLayout()
         self.status = QLabel("")
         bottom.addWidget(self.status, 1)
-        self.scan_btn = QPushButton(QIcon.fromTheme("view-refresh"), "Yeniden Tara")
+        self.scan_btn = QPushButton(QIcon.fromTheme("view-refresh"), _("ui.rescan"))
         self.scan_btn.clicked.connect(self.scan_all)
         bottom.addWidget(self.scan_btn)
-        self.clean_btn = QPushButton(QIcon.fromTheme("edit-clear-all"), "Seçilenleri Temizle")
+        self.clean_btn = QPushButton(QIcon.fromTheme("edit-clear-all"), _("ui.clean"))
         self.clean_btn.setObjectName("primary")
         self.clean_btn.clicked.connect(self.clean)
         bottom.addWidget(self.clean_btn)
@@ -655,7 +645,8 @@ class MainWindow(QMainWindow):
     def update_disk(self):
         total, used, free = disk_usage()
         self.disk_bar.setValue(int(used / total * 1000))
-        self.disk_lbl.setText(f"{human(used)} kullanılıyor  •  {human(free)} boş  •  toplam {human(total)}  (%{used / total * 100:.0f})")
+        self.disk_lbl.setText(_("ui.disk_line", used=human(used), free=human(free), total=human(total),
+                                pct=f"{used / total * 100:.0f}"))
         return free
 
     def update_total(self):
@@ -667,7 +658,7 @@ class MainWindow(QMainWindow):
                     unknown = True
                 else:
                     total += s
-        self.total_lbl.setText(f"Kazanılacak alan\n{human(total)}{' +' if unknown else ''}")
+        self.total_lbl.setText(_("ui.to_gain") + f"\n{human(total)}{' +' if unknown else ''}")
 
     # -- tarama --
     def _start_scan(self, cats, done_cb=None):
@@ -683,7 +674,7 @@ class MainWindow(QMainWindow):
             self.thread.quit()
             self.thread.wait()
             self.busy(False)
-            self.status.setText("Tarama tamamlandı.")
+            self.status.setText(_("ui.scan_done"))
             self.update_total()
             if done_cb:
                 done_cb()
@@ -705,24 +696,27 @@ class MainWindow(QMainWindow):
         chosen = [c for c in self.cats if self.cards[c.key].is_checked()]
         chosen = [c for c in chosen if not (c.items and c.key in SELECTABLE and not c.selected_items())]
         if not chosen:
-            QMessageBox.information(self, APP_NAME, "Temizlenecek bir şey seçilmedi.")
+            info_box(self, _("ui.nothing_selected"))
             return
         lines = "\n".join(f"• {c.title}  ({human(c.effective_size()) if c.effective_size() is not None else '?'})" for c in chosen)
         extra = ""
         if any(c.root for c in chosen):
-            extra = "\n\n🔒 Bazı işlemler için yönetici şifreniz istenecek."
+            extra = "\n\n" + _("ui.confirm_admin")
         if any(c.key == "orphans" for c in chosen):
             names = ", ".join(i.key for i in self.cards["orphans"].cat.selected_items())
-            extra += f"\n\nKaldırılacak paketler: {names}"
-        if QMessageBox.question(self, "Temizliği onayla",
-                                f"Aşağıdakiler kalıcı olarak silinecek:\n\n{lines}{extra}\n\nDevam edilsin mi?") \
-                != QMessageBox.StandardButton.Yes:
+            extra += "\n\n" + _("ui.confirm_packages", names=names)
+        box = QMessageBox(QMessageBox.Icon.Question, _("ui.confirm_title"),
+                          _("ui.confirm_body", lines=lines, extra=extra), parent=self)
+        yes = box.addButton(_("ui.yes_clean"), QMessageBox.ButtonRole.AcceptRole)
+        box.setDefaultButton(box.addButton(_("ui.cancel"), QMessageBox.ButtonRole.RejectRole))
+        box.exec()
+        if box.clickedButton() is not yes:
             return
 
         self.free_before = disk_usage()[2]
         self.log_box.clear()
         self.busy(True)
-        self.status.setText("Temizleniyor…")
+        self.status.setText(_("ui.cleaning"))
         self.thread = QThread()
         self.cworker = CleanWorker(chosen)
         self.cworker.moveToThread(self.thread)
@@ -736,12 +730,12 @@ class MainWindow(QMainWindow):
         self.thread.wait()
         free = self.update_disk()
         gained = max(0, free - self.free_before)
-        msg = f"Temizlik bitti. Kazanılan alan: {human(gained)}"
+        msg = _("ui.done", size=human(gained))
         self.log("")
-        self.log(msg + ("" if ok else "  (bazı adımlar tamamlanamadı, kayıtlara bakın)"))
+        self.log(msg + ("" if ok else _("ui.some_failed_log")))
         self.busy(False)
         self.status.setText(msg)
-        QMessageBox.information(self, APP_NAME, msg + ("" if ok else "\n\nBazı adımlar tamamlanamadı; ayrıntılar kayıt penceresinde."))
+        info_box(self, msg + ("" if ok else "\n\n" + _("ui.some_failed_box")))
         self.scan_all()
 
 
@@ -751,6 +745,10 @@ def main():
     app.setApplicationVersion(APP_VERSION)
     app.setDesktopFileName("sistem-temizleyici")
     app.setStyleSheet(STYLE)
+    # Qt'nin kendi düğmeleri (Evet/Hayır, Tamam/İptal) için çeviri
+    translator = QTranslator(app)
+    if translator.load(f"qtbase_{LANG}", QLibraryInfo.path(QLibraryInfo.LibraryPath.TranslationsPath)):
+        app.installTranslator(translator)
     w = MainWindow()
     w.show()
     sys.exit(app.exec())

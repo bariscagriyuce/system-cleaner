@@ -5,6 +5,17 @@ CachyOS / Arch Linux için fare ile kullanılan, grafik arayüzlü disk temizlem
 
 ![Ekran görüntüsü](docs/ekran-goruntusu.png)
 
+## Diller / Languages / Idiomas
+Program sistem dilini otomatik algılar: **Türkçe**, **English**, **Português (Brasil)**.
+Sistem dili bunlardan biri değilse program İngilizce açılır.
+Dili elle seçmek için: `SISTEM_TEMIZLEYICI_LANG=en sistem-temizleyici`
+
+*English:* The app follows your system language (Turkish, English or Brazilian Portuguese)
+and falls back to English for any other language. Install with `sh kur.sh`.
+
+*Português:* O aplicativo segue o idioma do sistema (turco, inglês ou português do Brasil)
+e usa inglês para qualquer outro idioma. Instale com `sh kur.sh`.
+
 ## Kurulum (bir kez)
     git clone https://github.com/bariscagriyuce/system-cleaner.git
     cd system-cleaner

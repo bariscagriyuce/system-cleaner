@@ -1,12 +1,19 @@
 [Desktop Entry]
 Type=Application
-Name=Sistem Temizleyici
-Name[en]=System Cleaner
-GenericName=Disk Temizleme
-Comment=Gereksiz önbellek, eski paket ve günlük dosyalarını temizler
+Name=System Cleaner
+Name[tr]=Sistem Temizleyici
+Name[pt_BR]=Limpador do Sistema
+GenericName=Disk Cleanup
+GenericName[tr]=Disk Temizleme
+GenericName[pt_BR]=Limpeza de Disco
+Comment=Removes unneeded caches, old packages and log files
+Comment[tr]=Gereksiz önbellek, eski paket ve günlük dosyalarını temizler
+Comment[pt_BR]=Remove caches desnecessários, pacotes antigos e arquivos de log
 Exec=sistem-temizleyici
 Icon=edit-clear-all
 Terminal=false
-Categories=System;Utility;Settings;
-Keywords=temizle;önbellek;cache;pacman;paru;disk;clean;
+Categories=System;Utility;
+Keywords=clean;cache;pacman;paru;disk;junk;
+Keywords[tr]=temizle;önbellek;cache;pacman;paru;disk;çöp;
+Keywords[pt_BR]=limpar;cache;pacman;paru;disco;lixo;
 StartupWMClass=sistem-temizleyici
